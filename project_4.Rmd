@@ -1,0 +1,243 @@
+---
+title: "Wine ratings worldwide"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(DT)
+library(tidyverse)
+if (!dir.exists("data")){
+  dir.create("data")
+  wine <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-28/winemag-data-130k-v2.csv')
+  write.csv(wine,"data/wine.csv")
+}
+wine <- read.csv("data/wine.csv")
+```
+
+# About
+
+**Purpose of this dashboard**
+
+The purpose of this dashboard is to show the distribution of wines with rating over 80 points worldwide and see how is the price of wines related to rating of wines.
+
+**link to original data**
+
+https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-28/winemag-data-130k-v2.csv
+
+**video guide**
+
+<iframe width="700" height="600" src="https://youtube.com/embed/Pqqxe49aS3Y" frameborder="0" allowfullscreen></iframe>
+
+
+# The Data
+
+The original dataset is a wine-enthusiast ratings dataset from Kaggle. The dataset used here is from TidyTuesday, May 28, 2019. We can see all the features of the wines including country, grape variety, region, and the points assigned etc from this dataset.  
+
+```{r, echo=FALSE}
+DT_wine <- wine %>% select(country, designation, points, price, variety, winery)%>%filter(!is.na(designation), !is.na(price), !is.na(country), !is.na(variety), !is.na(winery))
+```
+
+```{r, echo=FALSE}
+DT::renderDataTable({
+  DT::datatable(DT_wine,
+                caption = htmltools::tags$caption(
+                  style = 'caption-side: top; text-align: Left;'))
+})
+```
+
+
+
+# Number of wines by country (Statistic)
+
+Column {.tabset}
+-------------------------------------
+
+### Countries with largest number of wines over 80 pt
+
+```{r}
+wine_number_most<-DT_wine %>%select(country)%>%group_by(country)%>%summarize(number_of_wines=n())%>%filter(number_of_wines>1000)%>%arrange(desc(number_of_wines))
+ggplot(wine_number_most, aes(x=number_of_wines,
+                  y= fct_reorder(.f = country, .x = number_of_wines)))+
+  geom_col(width=0.5)+
+  labs(title = "Top 10 number of wines for countries",
+  subtitle = "Bar chart of numbers of wines over 80 points for top 10 countries",
+  caption="created by Chunyan Zheng")+
+  ylab("Country") + xlab("Number of wines")+
+  theme(axis.text.x = element_text(angle = 60, hjust=1, size =8),
+    plot.title = element_text(color="cadetblue", size=15, face="bold.italic"),
+    plot.subtitle=element_text(size=8,color="black"),
+    axis.title.x = element_text(color="azure4", size=14, face="bold"),
+    axis.title.y = element_text(color="cornflowerblue", size=14, face="bold"))
+```
+
+
+
+### Countries with smallest number of wines over 80 pt
+
+```{r}
+wine_number_least<-DT_wine %>%select(country)%>%group_by(country)%>%summarize(number_of_wines=n())%>%arrange(number_of_wines)%>%filter(number_of_wines<10)
+ggplot(wine_number_least, aes(x=number_of_wines,
+                  y= fct_reorder(.f = country, .x = number_of_wines)))+
+  geom_col(width=0.5)+
+  labs(title = "10 countries with the lowest number of wines",
+  subtitle = "Bar chart of numbers of wines over 80 points for countries with fewest number of wines",
+  caption="created by Chunyan Zheng")+
+  ylab("Country") + xlab("Number of wines")+
+  xlim(0, 10)+scale_x_continuous(breaks = c(0,1,2,3,4,5,6,7,8,9))+
+  theme(axis.text.x = element_text(hjust=1, size =8),
+    plot.title = element_text(color="cadetblue", size=15, face="bold.italic"),
+    plot.subtitle=element_text(size=8,color="black"),
+    axis.title.x = element_text(color="azure4", size=14, face="bold"),
+    axis.title.y = element_text(color="cornflowerblue", size=14, face="bold"))
+```
+
+
+# Country with wines of high score (Statistic)
+
+```{r}
+score<-wine%>%select(country,points)%>%drop_na()%>%group_by(country)%>%filter(n()>1)%>%summarize(mean = mean(points))%>%drop_na()%>%rename(average_rating=mean)%>%arrange(desc(average_rating))%>%slice(1:10)
+ggplot(score, aes(x = average_rating,
+                      y= fct_reorder(.f = country, .x = average_rating)))+
+  geom_point()+
+  labs(title = "Average ratings of wines for top 10 countries",
+  caption = "created by Chunyan Zheng",
+  subtitle = "This plot shows the mean ratings of wines for top 10 countries")+
+  theme(axis.text.x = element_text(angle = 60, hjust=1, size =8),
+    plot.title = element_text(color="cadetblue", size=15, face="bold.italic"),
+    plot.subtitle=element_text(size=8,color="black"),
+    axis.title.x = element_text(color="azure4", size=14, face="bold"),
+    axis.title.y = element_text(color="cornflowerblue", size=14, face="bold"))+
+  xlab("Average rating") + ylab("Country")+theme_bw()
+```
+
+
+# Wine prices distribution (Interactive)
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+Distribution of wine prices
+
+```{r}
+numericInput("max_price", label = "max price",200, min = 4, max = 2013)
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Distribution of wine prices
+
+```{r}
+renderPlot({
+  wine_price<-DT_wine %>%select(price)%>%group_by(price)%>%summarize(number_of_prices=n())
+ggplot(wine_price, aes(x=price,
+                  y=number_of_prices ))+
+  geom_col(width=2)+
+  labs(title = "Distribution of wine prices",
+  subtitle = "Bar chart of prices wines over 80 points",
+  caption="created by Chunyan Zheng")+
+  ylab("Frequency") + xlab("Price")+
+  xlim(4,input$max_price)
+})
+```
+
+
+
+# Wine rating distribution by country (Interactive)
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+Distribution of wine ratings
+
+```{r}
+selectInput(inputId = "country", 
+              label = "Select a country:",
+            choices = DT_wine %>% 
+              pull(country) %>% 
+              sort(), selected = "US")
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Distribution of wine ratings
+
+```{r}
+renderPlot({
+country_rating <- DT_wine %>% select(country, points)%>%filter(country == input$country)%>%group_by(points)%>%summarize(number_of_points=n())
+
+ggplot(country_rating, aes(x=points,
+                  y=number_of_points ))+
+  geom_col(width=1)+
+  labs(title = "Distribution of wine ratings",
+  subtitle = "Bar chart of ratings wines over 80 points",
+  caption="created by Chunyan Zheng")+
+  ylab("Frequency") + xlab("Rating")
+})
+```
+
+# Analysis
+
+## Column 1
+
+### grape variety vs.rating
+```{r}
+grape<-DT_wine %>% select(variety,points)%>%group_by(variety)%>%summarize(mean=mean(points))%>%arrange(desc(mean))%>%slice(1:10)
+ggplot(grape, aes(y=mean,
+                  x=reorder(variety, -mean)))+
+  geom_point()+
+  labs(title = "Ratings of top 10 grape varieties",
+  subtitle = "This graphs shows the grape varieties which produce highest rating wines",
+  caption="created by Chunyan Zheng")+
+  ylab("Ratings") + xlab("Grape variety")+
+  theme(axis.text.x = element_text(angle = 60, hjust=1, size =8),
+    plot.title = element_text(color="cadetblue", size=15, face="bold.italic"),
+    plot.subtitle=element_text(size=8,color="black"),
+    axis.title.x = element_text(color="azure4", size=14, face="bold"),
+    axis.title.y = element_text(color="cornflowerblue", size=14, face="bold"))
+```
+
+### grape variety vs. price
+```{r}
+grape_price<-DT_wine %>% select(variety,price)%>%group_by(variety)%>%summarize(mean=mean(price))%>%arrange(desc(mean))%>%slice(1:10)
+ggplot(grape_price, aes(y=mean,
+                  x=reorder(variety, -mean)))+
+  geom_col()+
+  labs(title = "Prices of top 10 grape varieties",
+  subtitle = "This graphs shows the grape varieties which produce highest rating wines",
+  caption="created by Chunyan Zheng")+
+  ylab("Price") + xlab("Grape variety")+
+  theme(axis.text.x = element_text(angle = 60, hjust=1, size =8),
+    plot.title = element_text(color="cadetblue", size=15, face="bold.italic"),
+    plot.subtitle=element_text(size=8,color="black"),
+    axis.title.x = element_text(color="azure4", size=14, face="bold"),
+    axis.title.y = element_text(color="cornflowerblue", size=14, face="bold"))
+```
+
+## Column 2
+
+### wine price vs rating
+```{r}
+rating_price<-DT_wine%>%select(points, price)
+
+ggplot(rating_price, aes(x=points, y=price))+ 
+  geom_jitter(width = .5, size=1)+
+  labs(title = "Correlation between price and rating",
+  subtitle = "This graphs shows the relationship between price and rating of wines",
+  caption="created by Chunyan Zheng")+
+  ylab("Price") + xlab("Rating")+
+  theme(axis.text.x = element_text(angle = 60, hjust=1, size =8),
+    plot.title = element_text(color="cadetblue", size=15, face="bold.italic"),
+    plot.subtitle=element_text(size=8,color="black"),
+    axis.title.x = element_text(color="azure4", size=14, face="bold"),
+    axis.title.y = element_text(color="cornflowerblue", size=14, face="bold"))
+
+```
+
